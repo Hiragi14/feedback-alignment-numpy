@@ -9,7 +9,19 @@ from lib.functions import np_log, relu, deriv_relu, deriv_softmax, softmax
 from lib.model import Model, Model_FA
 from lib.datahandler import create_batch
 
-np.random.seed(34)
+from torch.utils.tensorboard import SummaryWriter
+
+from datetime import datetime
+
+# 現在の日時を取得してフォルダ名を生成
+current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
+log_dir = f'runs/mlp_fa_{current_time}'
+
+# TensorBoard writerの初期化
+writer = SummaryWriter(log_dir)
+
+# np.random.seed(34)
+np.random.seed(42)
 
 # MNISTデータの取得
 digits = fetch_openml(name='mnist_784', version=1)
@@ -42,11 +54,13 @@ def valid(model, x, t):
 
 model_FA = Model_FA(
     hidden_dims=[784, 100, 100, 10], 
+    # hidden_dims=[784, 100, 10], 
     activate_function=[relu, relu, softmax], 
     deriv_activate_function=[deriv_relu, deriv_relu, deriv_softmax])
 
 model = Model(
     hidden_dims=[784, 100, 100, 10], 
+    # hidden_dims=[784, 100, 10], 
     activation_functions=[relu, relu, softmax], 
     deriv_functions=[deriv_relu, deriv_relu, deriv_softmax])
 
@@ -73,6 +87,17 @@ for i in range(epoch):
     accuracy_FA = accuracy_score(t_valid_mnist.argmax(axis=1), y_pred_FA.argmax(axis=1))
     accuracy = accuracy_score(t_valid_mnist.argmax(axis=1), y_pred.argmax(axis=1))
 
+    for j, layer in enumerate(model.layers):
+        writer.add_histogram(f"layer_{j+1}_weights/BP", layer.W.flatten(), i, bins='auto')
+    for j, layer in enumerate(model_FA.layers):
+        writer.add_histogram(f"layer_{j+1}_weights/FA", layer.W.flatten(), i, bins='auto')
+        writer.add_histogram(f"layer_{j+1}_fixed_matrix/FA", layer.B.flatten(), i, bins='auto')
+
+    writer.add_scalar("Loss/BP", cost, epoch * batch_size + i)
+    writer.add_scalar("Loss/FA", cost_FA, epoch * batch_size + i)
+    writer.add_scalar("Accuracy/BP", accuracy, epoch * batch_size + i)
+    writer.add_scalar("Accuracy/FA", accuracy_FA, epoch * batch_size + i)
+
     print(f"#####EPOCH: {i+1}")
     print(f"BP Valid[Cost: {cost:.3f}, Accuracy: {accuracy:.3f}]")
     print(f"FA Valid[Cost: {cost_FA:.3f}, Accuracy: {accuracy_FA:.3f}]")
@@ -90,4 +115,4 @@ Cost_array_fa = pd.Series(data=Cost_array_fa, index=x, name='Cost_FA')
 
 data = pd.concat([Accuracy_array ,Accuracy_array_fa, Cost_array, Cost_array_fa], axis=1)
 
-data.to_csv('./data/data_fa.csv')
+# data.to_csv('./data/data_fa.csv')
